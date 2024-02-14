@@ -1,0 +1,106 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: example-aws
+  labels:
+    cluster-api.cattle.io/rancher-auto-import: "true"
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: ${CLUSTER_NAME}
+  namespace: example-aws
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+      - 192.168.0.0/16
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+    kind: RKE2ControlPlane
+    name: ${CLUSTER_NAME}-control-plane
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+    kind: AWSCluster
+    name: ${CLUSTER_NAME}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+kind: AWSCluster
+metadata:
+  name: ${CLUSTER_NAME}
+  namespace: example-aws
+spec:
+  bastion:
+    enabled: true
+  network:
+    vpc:
+      availabilityZoneUsageLimit: 1
+    additionalControlPlaneIngressRules:
+      - description: "RKE2 Control Plane additional group"
+        protocol: "tcp"
+        fromPort: 9345
+        toPort: 9345
+        sourceSecurityGroupRoles:
+          - node
+          - controlplane
+  controlPlaneLoadBalancer:
+      loadBalancerType: nlb
+      additionalListeners:
+        - port: 9345
+          protocol: "TCP"
+      ingressRules:
+        - description: "RKE2 Control Plane"
+          protocol: "tcp"
+          fromPort: 9345
+          toPort: 9345
+          sourceSecurityGroupRoles:
+            - node
+            - controlplane
+  region: ${AWS_REGION}
+  sshKeyName: ${SSH_KEY}
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1alpha1
+kind: RKE2ControlPlane
+metadata:
+  name: ${CLUSTER_NAME}-control-plane
+  namespace: example-aws
+spec:
+  preRKE2Commands:
+  - sudo hostnamectl set-hostname $(curl -s http://169.254.169.254/1.0/meta-data/hostname)
+  agentConfig:
+    version: v1.26.13+rke2r1
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: AWSMachineTemplate
+    name: ${CLUSTER_NAME}-control-plane
+  nodeDrainTimeout: 2m
+  replicas: 3
+  serverConfig:
+    cloudProviderName: aws
+    cni: calico
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+kind: AWSMachineTemplate
+metadata:
+  name: ${CLUSTER_NAME}-control-plane
+  namespace: example-aws
+spec:
+  template:
+    spec:
+      iamInstanceProfile: control-plane.cluster-api-provider-aws.sigs.k8s.io
+      instanceType: t3a.large
+      rootVolume:
+        size: 50
+      sshKeyName: ${SSH_KEY}
+      imageLookupFormat: capa-ami-ubuntu-20.04-v1.26.10-1698917087 # we need to use CAPA images for kubeadm until we build and publish RKE2 images
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+kind: AWSClusterControllerIdentity
+metadata:
+  name: default
+  namespace: example-aws
+spec:
+  allowedNamespaces:
+    list:
+    - default
+    - example-aws
