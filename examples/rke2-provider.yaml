@@ -8,6 +8,9 @@ kind: BootstrapProvider
 metadata:
   name: rke2
   namespace: rke2-bootstrap-system
+spec:
+  fetchConfig:
+   url: "https://github.com/furkatgofurov7/cluster-api-provider-rke2/releases/v0.3.99/bootstrap-components.yaml"
 ---
 apiVersion: v1
 kind: Namespace
@@ -19,3 +22,6 @@ kind: ControlPlaneProvider
 metadata:
   name: rke2
   namespace: rke2-control-plane-system
+spec:
+  fetchConfig:
+   url: "https://github.com/furkatgofurov7/cluster-api-provider-rke2/releases/v0.3.99/control-plane-components.yaml"
