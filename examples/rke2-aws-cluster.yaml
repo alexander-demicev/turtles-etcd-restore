@@ -78,6 +78,10 @@ spec:
   serverConfig:
     cloudProviderName: aws
     cni: calico
+    etcd:
+      backupConfig:
+        retention: "10"
+        scheduleCron: "*/15 * * * *"
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
 kind: AWSMachineTemplate

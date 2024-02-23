@@ -11,6 +11,10 @@ metadata:
 spec:
   fetchConfig:
    url: "https://github.com/furkatgofurov7/cluster-api-provider-rke2/releases/v0.3.99/bootstrap-components.yaml"
+  deployment:
+    containers:
+      - name: "manager"
+        imageUrl: ademicev.io/capi/cluster-api-provider-rke2-bootstrap-arm64:dev
 ---
 apiVersion: v1
 kind: Namespace

@@ -33,6 +33,7 @@ import (
 	"k8s.io/component-base/version"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
+	"sigs.k8s.io/cluster-api/controllers/remote"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -171,8 +172,36 @@ func setupChecks(mgr ctrl.Manager) {
 }
 
 func setupReconcilers(ctx context.Context, mgr ctrl.Manager) {
+	secretCachingClient, err := client.New(mgr.GetConfig(), client.Options{
+		HTTPClient: mgr.GetHTTPClient(),
+		Cache: &client.CacheOptions{
+			Reader: mgr.GetCache(),
+		},
+	})
+	if err != nil {
+		setupLog.Error(err, "unable to create secret caching client")
+		os.Exit(1)
+	}
+
+	// Set up a ClusterCacheTracker and ClusterCacheReconciler to provide to controllers
+	// requiring a connection to a remote cluster
+	tracker, err := remote.NewClusterCacheTracker(
+		mgr,
+		remote.ClusterCacheTrackerOptions{
+			SecretCachingClient: secretCachingClient,
+			ControllerName:      "etcd-restore-controller",
+			Log:                 &ctrl.Log,
+			Indexes:             []remote.Index{remote.NodeProviderIDIndex},
+		},
+	)
+	if err != nil {
+		setupLog.Error(err, "unable to create cluster cache tracker")
+		os.Exit(1)
+	}
+
 	if err := (&controllers.EtcdSnapshotSyncReconciler{
-		Client: mgr.GetClient(),
+		Client:  mgr.GetClient(),
+		Tracker: tracker,
 	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create EtcdSnapshotSyncReconciler")
 		os.Exit(1)
